@@ -5,10 +5,10 @@ import { Store } from "../server/database";
 import { createApp } from "../server/app";
 const directory = mkdtempSync(join(tmpdir(), "pipsfit-browser-"));
 const store = new Store(directory);
-const server = createApp(store, { secureCookie: false }).listen(
-  4173,
-  "127.0.0.1",
-);
+const server = createApp(store, {
+  secureCookie: false,
+  setupToken: "codigo-de-ativacao-exclusivo-de-teste-123",
+}).listen(4173, "127.0.0.1");
 function close() {
   server.close(() => {
     store.close();

@@ -1,12 +1,14 @@
-import { resolve } from "node:path";
 import { Store } from "./database";
 import { createApp } from "./app";
-const port = Number(process.env.PORT ?? 3001);
-const store = new Store(resolve(process.env.APP_DATA_DIR ?? ".local"));
-const server = createApp(store).listen(
-  port,
-  process.env.HOST ?? "127.0.0.1",
-  () => console.log(`Pipsfit: servidor iniciado na porta ${port}.`),
+import { runtimeConfig } from "./runtime";
+const config = runtimeConfig();
+const store = new Store(config.directory);
+const server = createApp(store, {
+  origin: config.origin,
+  secureCookie: config.production,
+  setupToken: config.setupToken,
+}).listen(config.port, config.host, () =>
+  console.log(`Pipsfit: servidor iniciado na porta ${config.port}.`),
 );
 function stop() {
   server.close(() => {

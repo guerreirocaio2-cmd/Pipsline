@@ -22,6 +22,7 @@ const passwordSchema = z.object({
     .string()
     .min(12, "Use pelo menos 12 caracteres.")
     .max(128, "Use até 128 caracteres."),
+  setupToken: z.string().max(256).optional(),
 });
 const digest = (value: string) =>
   createHash("sha256").update(value).digest("hex");
@@ -29,7 +30,8 @@ export function createApp(
   store: Store,
   {
     secureCookie = process.env.NODE_ENV === "production",
-    origin = process.env.APP_ORIGIN,
+    origin = process.env.APP_ORIGIN || process.env.RENDER_EXTERNAL_URL,
+    setupToken = process.env.PIPSFIT_SETUP_TOKEN,
   } = {},
 ) {
   const app = express();
@@ -78,6 +80,8 @@ export function createApp(
     res.json({
       configured: !!store.db.prepare("SELECT id FROM app_user").get(),
       authenticated: authenticated(req),
+      requiresSetupToken:
+        !!setupToken && !store.db.prepare("SELECT id FROM app_user").get(),
     }),
   );
   const login = async (req: Request, res: Response, next: NextFunction) => {
@@ -98,7 +102,9 @@ export function createApp(
         count: previous && previous.until > now ? previous.count + 1 : 1,
         until: previous && previous.until > now ? previous.until : now + 900000,
       });
-      const { password } = passwordSchema.parse(req.body);
+      const { password, setupToken: suppliedToken } = passwordSchema.parse(
+        req.body,
+      );
       const user = store.db
         .prepare("SELECT salt,password_hash FROM app_user WHERE id=1")
         .get() as { salt: string; password_hash: string } | undefined;
@@ -107,6 +113,19 @@ export function createApp(
         return res.status(409).json({ error: "A senha já foi configurada." });
       if (!setup && !user)
         return res.status(409).json({ error: "Configure sua senha primeiro." });
+      if (
+        setup &&
+        setupToken &&
+        !timingSafeEqual(
+          Buffer.from(digest(suppliedToken ?? ""), "hex"),
+          Buffer.from(digest(setupToken), "hex"),
+        )
+      ) {
+        return res.status(401).json({
+          error:
+            "Código de ativação incorreto. Consulte PIPSFIT_SETUP_TOKEN no painel da hospedagem.",
+        });
+      }
       const salt = user?.salt ?? randomBytes(32).toString("hex");
       const hash = (await scrypt(password, salt, 64)) as Buffer;
       if (

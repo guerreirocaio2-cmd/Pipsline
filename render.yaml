@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: pipsfit
+    runtime: node
+    plan: starter
+    branch: main
+    numInstances: 1
+    autoDeploy: false
+    buildCommand: npm ci --include=dev --no-audit --no-fund && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    disk:
+      name: pipsfit-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: 24.19.0
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: APP_DATA_DIR
+        value: /var/data/pipsfit
+      - key: PIPSFIT_SETUP_TOKEN
+        generateValue: true

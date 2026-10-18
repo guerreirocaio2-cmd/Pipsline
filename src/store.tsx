@@ -56,7 +56,11 @@ type Context = {
   online: boolean;
   syncing: boolean;
   lastSync: Date | null;
-  login: (password: string, setup: boolean) => Promise<void>;
+  login: (
+    password: string,
+    setup: boolean,
+    setupToken?: string,
+  ) => Promise<void>;
   lock: () => Promise<void>;
   mutate: (entity: Entity, record: Exercise | Plan | Session) => Promise<void>;
   sync: () => Promise<void>;
@@ -124,7 +128,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     current.current = next;
     setVault(next);
   }
-  async function login(password: string, setup: boolean) {
+  async function login(password: string, setup: boolean, setupToken?: string) {
     setBusy(true);
     setError("");
     try {
@@ -145,7 +149,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
       let remote: { state: State } | undefined;
       try {
-        remote = await api(setup ? "/auth/setup" : "/auth/login", { password });
+        remote = await api(setup ? "/auth/setup" : "/auth/login", {
+          password,
+          ...(setup && setupToken ? { setupToken } : {}),
+        });
       } catch (e) {
         if (e instanceof ApiError) throw e;
         if (!local)

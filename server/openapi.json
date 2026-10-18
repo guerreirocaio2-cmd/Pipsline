@@ -77,9 +77,17 @@
                     },
                     "authenticated": {
                       "type": "boolean"
+                    },
+                    "requiresSetupToken": {
+                      "type": "boolean",
+                      "description": "Indica se a criação da primeira senha exige código privado de ativação."
                     }
                   },
-                  "required": ["configured", "authenticated"],
+                  "required": [
+                    "configured",
+                    "authenticated",
+                    "requiresSetupToken"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -111,7 +119,7 @@
     },
     "/api/auth/setup": {
       "post": {
-        "summary": "Criar o único usuário e modelos A/B/C.",
+        "summary": "Criar o único usuário e modelos A/B/C; em hospedagem pública, exige código de ativação.",
         "responses": {
           "200": {
             "description": "Sucesso.",
@@ -204,6 +212,11 @@
                     "type": "string",
                     "minLength": 12,
                     "maxLength": 128
+                  },
+                  "setupToken": {
+                    "type": "string",
+                    "maxLength": 256,
+                    "description": "Obrigatório se requiresSetupToken=true. Obter no painel da hospedagem, nunca na URL ou no chat."
                   }
                 },
                 "required": ["password"],

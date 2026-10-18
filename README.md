@@ -2,6 +2,10 @@
 
 PWA pessoal de treino em português do Brasil. **Fase 1 implementada**: autenticação de um único usuário, 157 exercícios, fichas, modo treinando, descanso automático, histórico e sugestões de progressão. Não há dados pessoais de demonstração.
 
+## Usar no iPhone e hospedar na internet
+
+A configuração de hospedagem está em `render.yaml`. Veja o [passo a passo do Render e do iPhone](docs/hospedar-no-render.md). O serviço usa plano Starter com disco persistente pago; a contratação é feita pelo usuário no painel do Render. A conta inicial exige um código de ativação gerado pela hospedagem. Salvar o código no GitHub não cria automaticamente a hospedagem.
+
 ## Rodar localmente
 
 Requer **Node.js 24** (versão validada: 24.19.0) e npm.
@@ -50,12 +54,13 @@ Senhas usam scrypt com salt individual; o banco não guarda a senha. Sessões de
 Para hospedar, termine TLS em um proxy e execute, por exemplo:
 
 ```sh
+# Defina PIPSFIT_SETUP_TOKEN de forma privada no ambiente da hospedagem.
 NODE_ENV=production APP_ORIGIN=https://seu-dominio.example npm start
 ```
 
-Em produção, cookies recebem `Secure` e HSTS é habilitado. `APP_ORIGIN` deve corresponder exatamente à origem pública (sem barra final). Não use a mesma instância pública para pessoas diferentes: o aplicativo é de usuário único. A configuração inicial deve ser feita em acesso privado antes de expor o servidor. O servidor web do PWA e a API devem compartilhar a mesma origem.
+Em produção, defina também `PIPSFIT_SETUP_TOKEN` com um código privado aleatório de 32 a 256 caracteres. Ele protege a criação da primeira conta. No Render, o YAML gera o código e o servidor usa `RENDER_EXTERNAL_URL` automaticamente quando `APP_ORIGIN` não foi definida. Cookies recebem `Secure` e HSTS é habilitado. `APP_ORIGIN` deve corresponder exatamente à origem pública (sem barra final). Não use a mesma instância pública para pessoas diferentes: o aplicativo é de usuário único. A configuração inicial deve ser feita em acesso privado antes de expor o servidor. O servidor web do PWA e a API devem compartilhar a mesma origem.
 
-Variáveis opcionais: `APP_DATA_DIR` (pasta privada de dados, padrão `.local`), `PORT` (3001), `HOST` (127.0.0.1) e `APP_ORIGIN`. Nenhuma credencial de terceiros é necessária para esta fase. Não coloque `.local`, senhas ou chaves no Git.
+Na hospedagem pública, `NODE_ENV=production`, uma origem HTTPS e `PIPSFIT_SETUP_TOKEN` são obrigatórios. Variáveis adicionais: `APP_DATA_DIR` (pasta privada de dados, padrão `.local`), `PORT` (3001), `HOST` (127.0.0.1) e `APP_ORIGIN`. Nenhuma credencial de terceiros é necessária para esta fase. Não coloque `.local`, senhas ou chaves no Git.
 
 ## Verificações
 

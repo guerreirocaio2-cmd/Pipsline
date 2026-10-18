@@ -53,10 +53,17 @@ function Login() {
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
+  const [setupToken, setSetupToken] = useState("");
+  const [requiresSetupToken, setRequiresSetupToken] = useState(false);
   const [localError, setLocalError] = useState("");
   useEffect(() => {
-    void api<{ configured: boolean }>("/auth/status")
-      .then((r) => setConfigured(r.configured))
+    void api<{ configured: boolean; requiresSetupToken?: boolean }>(
+      "/auth/status",
+    )
+      .then((r) => {
+        setConfigured(r.configured);
+        setRequiresSetupToken(r.requiresSetupToken ?? false);
+      })
       .catch(() => setConfigured(true));
   }, []);
   const setup = configured === false;
@@ -69,7 +76,7 @@ function Login() {
       return;
     }
     try {
-      await login(password, setup);
+      await login(password, setup, setupToken);
     } catch {}
   }
   return (
@@ -110,6 +117,27 @@ function Login() {
               : "Desbloqueie seu espaço. Seu próximo passo começa aqui."}
           </p>
           <form onSubmit={submit}>
+            {setup && requiresSetupToken && (
+              <label className="field">
+                <span>Código de ativação</span>
+                <input
+                  aria-label="Código de ativação"
+                  type="password"
+                  required
+                  minLength={32}
+                  maxLength={256}
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  value={setupToken}
+                  onChange={(e) => setSetupToken(e.target.value)}
+                />
+                <small>
+                  Use o código PIPSFIT_SETUP_TOKEN do painel da hospedagem. Ele
+                  é necessário apenas para criar a conta.
+                </small>
+              </label>
+            )}
             <label className="field">
               <span>{setup ? "Crie sua senha" : "Sua senha"}</span>
               <input

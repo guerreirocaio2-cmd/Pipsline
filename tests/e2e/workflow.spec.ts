@@ -7,6 +7,9 @@ test("Fase 1: ficha, série offline, recarga, sincronização e exportação", a
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/");
+  await page
+    .getByLabel("Código de ativação", { exact: true })
+    .fill("codigo-de-ativacao-exclusivo-de-teste-123");
   await page.getByLabel("Crie sua senha", { exact: true }).fill(password);
   await page.getByLabel("Confirme a senha").fill(password);
   await page.getByRole("button", { name: "Criar meu espaço" }).click();

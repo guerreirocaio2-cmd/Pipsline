@@ -213,3 +213,96 @@ describe("sincronização sem duplicidade", () => {
     expect(JSON.stringify(result.value)).not.toContain("password_hash");
   });
 });
+
+async function reconfigure(options: Parameters<typeof createApp>[1]) {
+  await new Promise<void>((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve())),
+  );
+  server = createApp(store, options).listen(0, "127.0.0.1");
+  await new Promise<void>((resolve) => server.once("listening", resolve));
+  base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+}
+describe("hospedagem pública", () => {
+  const activation = "codigo-de-ativacao-exclusivo-de-teste-123";
+  it("não permite que visitantes criem a primeira senha sem o código privado", async () => {
+    await reconfigure({ secureCookie: false, setupToken: activation });
+    const status = await request("/api/auth/status");
+    expect(status.value.requiresSetupToken).toBe(true);
+    expect(JSON.stringify(status.value)).not.toContain(activation);
+    expect(
+      (await request("/api/auth/setup", { password })).response.status,
+    ).toBe(401);
+    expect(
+      (
+        await request("/api/auth/setup", {
+          password,
+          setupToken: "codigo-incorreto",
+        })
+      ).response.status,
+    ).toBe(401);
+    expect(store.db.prepare("SELECT id FROM app_user").get()).toBeUndefined();
+    expect(
+      (await request("/api/auth/setup", { password, setupToken: activation }))
+        .response.status,
+    ).toBe(200);
+    expect((await request("/api/auth/status")).value.requiresSetupToken).toBe(
+      false,
+    );
+    expect(
+      (await request("/api/auth/login", { password })).response.status,
+    ).toBe(200);
+  });
+  it("emite cookie Secure atrás do HTTPS e mantém a verificação de origem", async () => {
+    const origin = "https://pipsfit.example";
+    await reconfigure({ secureCookie: true, origin, setupToken: activation });
+    expect(
+      (await request("/api/auth/setup", { password, setupToken: activation }))
+        .response.status,
+    ).toBe(403);
+    const result = await request(
+      "/api/auth/setup",
+      { password, setupToken: activation },
+      origin,
+    );
+    expect(result.response.status).toBe(200);
+    expect(result.response.headers.get("set-cookie")).toContain("Secure");
+    expect(result.response.headers.get("set-cookie")).toContain("HttpOnly");
+    expect(result.response.headers.get("strict-transport-security")).toContain(
+      "max-age=",
+    );
+  });
+  it("recupera conta e histórico após reabrir o mesmo diretório persistente", async () => {
+    await setup();
+    const state = store.state();
+    const record = makeSession(state.plans[0], state);
+    record.exercises[0].sets[0].completedAt = new Date().toISOString();
+    record.finishedAt = new Date().toISOString();
+    const operation: Operation = {
+      id: crypto.randomUUID(),
+      entity: "session",
+      expectedRevision: 0,
+      payload: record,
+    };
+    expect(
+      (await request("/api/sync", { operations: [operation] })).response.status,
+    ).toBe(200);
+    const keyBefore = readFileSync(join(directory, "master.key"));
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
+    store.close();
+    store = new Store(directory);
+    server = createApp(store, { secureCookie: false }).listen(0, "127.0.0.1");
+    await new Promise<void>((resolve) => server.once("listening", resolve));
+    base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+    expect(readFileSync(join(directory, "master.key")).equals(keyBefore)).toBe(
+      true,
+    );
+    expect(store.state().sessions).toHaveLength(1);
+    expect(store.state().sessions[0]).toEqual(record);
+    cookie = "";
+    expect(
+      (await request("/api/auth/login", { password })).response.status,
+    ).toBe(200);
+  });
+});
