@@ -2,9 +2,11 @@
 
 PWA pessoal de treino em português do Brasil. **Fase 1 implementada**: autenticação de um único usuário, 157 exercícios, fichas, modo treinando, descanso automático, histórico e sugestões de progressão. Não há dados pessoais de demonstração.
 
-## Usar no iPhone e hospedar na internet
+## Usar no iPhone gratuitamente pelo Mac
 
-A configuração de hospedagem está em `render.yaml`. Veja o [passo a passo do Render e do iPhone](docs/hospedar-no-render.md). O serviço usa plano Starter com disco persistente pago; a contratação é feita pelo usuário no painel do Render. A conta inicial exige um código de ativação gerado pela hospedagem. Salvar o código no GitHub não cria automaticamente a hospedagem.
+Veja o [passo a passo gratuito com Tailscale Personal](docs/iphone-gratis-pelo-mac.md). O Mac continua como servidor e conserva a senha e os dados; o iPhone conecta por HTTPS privado, inclusive fora da rede de casa. O Mac precisa ficar ligado e o Tailscale deve estar conectado nos dois aparelhos. Não é necessário contratar hospedagem.
+
+Se quiser manter o aplicativo disponível com o Mac desligado, existe também uma [alternativa paga no Render](docs/hospedar-no-render.md), configurada em `render.yaml`. Essa alternativa só deve ser contratada depois de revisar o custo no painel; ela não é necessária para o acesso gratuito pelo Mac.
 
 ## Rodar localmente
 
