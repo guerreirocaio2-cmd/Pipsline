@@ -178,6 +178,7 @@ export async function startIphoneAccess(options = {}) {
       env: {
         ...process.env,
         NODE_ENV: "production",
+        PIPSFIT_STORAGE: "sqlite",
         HOST: "127.0.0.1",
         PORT: String(port),
         APP_ORIGIN: url,

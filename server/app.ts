@@ -14,7 +14,7 @@ import { promisify } from "node:util";
 import { resolve } from "node:path";
 import { existsSync } from "node:fs";
 import { z } from "zod";
-import { Store, Conflict } from "./database";
+import { Conflict, type AppStore } from "./store-contract";
 import { operationSchema, type Operation } from "../shared/domain";
 const scrypt = promisify(scryptCallback);
 const passwordSchema = z.object({
@@ -27,7 +27,7 @@ const passwordSchema = z.object({
 const digest = (value: string) =>
   createHash("sha256").update(value).digest("hex");
 export function createApp(
-  store: Store,
+  store: AppStore,
   {
     secureCookie = process.env.NODE_ENV === "production",
     origin = process.env.APP_ORIGIN || process.env.RENDER_EXTERNAL_URL,
@@ -54,10 +54,12 @@ export function createApp(
     return entry?.slice("pipsfit_session=".length) ?? "";
   };
   const authenticated = (req: Request) => {
-    const row = store.db
-      .prepare("SELECT expires_at FROM auth_sessions WHERE digest=?")
-      .get(digest(token(req))) as { expires_at: number } | undefined;
-    return !!row && row.expires_at > Date.now();
+    const session = token(req);
+    // Navegadores sem sessão não precisam despertar o banco gratuito.
+    return (
+      /^[a-f0-9]{64}$/.test(session) &&
+      store.hasAuthSession(digest(session), Date.now())
+    );
   };
   app.use("/api", (req, res, next) => {
     res.set("Cache-Control", "no-store");
@@ -76,14 +78,14 @@ export function createApp(
     next();
   });
   app.get("/api/health", (_req, res) => res.json({ status: "ok", phase: 1 }));
-  app.get("/api/auth/status", (req, res) =>
+  app.get("/api/auth/status", async (req, res) => {
+    const configured = !!(await store.getUser());
     res.json({
-      configured: !!store.db.prepare("SELECT id FROM app_user").get(),
-      authenticated: authenticated(req),
-      requiresSetupToken:
-        !!setupToken && !store.db.prepare("SELECT id FROM app_user").get(),
-    }),
-  );
+      configured,
+      authenticated: await authenticated(req),
+      requiresSetupToken: !!setupToken && !configured,
+    });
+  });
   const login = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const address = req.ip ?? "local";
@@ -105,9 +107,7 @@ export function createApp(
       const { password, setupToken: suppliedToken } = passwordSchema.parse(
         req.body,
       );
-      const user = store.db
-        .prepare("SELECT salt,password_hash FROM app_user WHERE id=1")
-        .get() as { salt: string; password_hash: string } | undefined;
+      const user = await store.getUser();
       const setup = req.path === "/api/auth/setup";
       if (setup && user)
         return res.status(409).json({ error: "A senha já foi configurada." });
@@ -133,25 +133,16 @@ export function createApp(
         !timingSafeEqual(hash, Buffer.from(user.password_hash, "hex"))
       )
         return res.status(401).json({ error: "Senha incorreta." });
-      if (setup)
-        store.transaction(() => {
-          store.db
-            .prepare("INSERT INTO app_user VALUES (1,?,?)")
-            .run(salt, hash.toString("hex"));
-          store.seedPlans();
-        });
+      if (setup && !(await store.createUser(salt, hash.toString("hex"))))
+        return res.status(409).json({ error: "A senha já foi configurada." });
       attempts.delete(address);
       const session = randomBytes(32).toString("hex");
-      store.db
-        .prepare("DELETE FROM auth_sessions WHERE expires_at<=?")
-        .run(now);
-      // Renova a sessão deste navegador e conserva as de outros dispositivos.
-      store.db
-        .prepare("DELETE FROM auth_sessions WHERE digest=?")
-        .run(digest(token(req)));
-      store.db
-        .prepare("INSERT INTO auth_sessions VALUES (?,?)")
-        .run(digest(session), now + 8 * 3600000);
+      await store.createAuthSession(
+        digest(session),
+        digest(token(req)),
+        now,
+        now + 8 * 3600000,
+      );
       res.cookie("pipsfit_session", session, {
         httpOnly: true,
         secure: secureCookie,
@@ -159,17 +150,15 @@ export function createApp(
         path: "/api",
         maxAge: 8 * 3600000,
       });
-      res.json({ state: store.state() });
+      res.json({ state: await store.state() });
     } catch (error) {
       next(error);
     }
   };
   app.post("/api/auth/setup", login);
   app.post("/api/auth/login", login);
-  app.post("/api/auth/logout", (req, res) => {
-    store.db
-      .prepare("DELETE FROM auth_sessions WHERE digest=?")
-      .run(digest(token(req)));
+  app.post("/api/auth/logout", async (req, res) => {
+    await store.deleteAuthSession(digest(token(req)));
     res.clearCookie("pipsfit_session", {
       httpOnly: true,
       secure: secureCookie,
@@ -181,30 +170,32 @@ export function createApp(
   app.get("/api/openapi.json", (_req, res) =>
     res.sendFile(resolve("server/openapi.json")),
   );
-  app.use("/api", (req, res, next) =>
-    authenticated(req)
+  app.use("/api", async (req, res, next) =>
+    (await authenticated(req))
       ? next()
       : res.status(401).json({
           error:
             "Sua sessão expirou. Desbloqueie com a senha para sincronizar.",
         }),
   );
-  app.get("/api/state", (_req, res) => res.json({ state: store.state() }));
-  app.post("/api/sync", (req, res, next) => {
+  app.get("/api/state", async (_req, res) =>
+    res.json({ state: await store.state() }),
+  );
+  app.post("/api/sync", async (req, res, next) => {
     try {
       const { operations } = z
         .object({ operations: z.array(operationSchema).max(2000) })
         .parse(req.body);
-      res.json(store.synchronize(operations as Operation[]));
+      res.json(await store.synchronize(operations as Operation[]));
     } catch (error) {
       next(error);
     }
   });
-  app.get("/api/export", (_req, res) =>
+  app.get("/api/export", async (_req, res) =>
     res.json({
       version: 1,
       exportedAt: new Date().toISOString(),
-      ...store.state(),
+      ...(await store.state()),
     }),
   );
   app.use("/api", (_req, res) =>

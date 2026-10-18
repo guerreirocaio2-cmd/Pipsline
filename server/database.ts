@@ -7,12 +7,7 @@ import {
   existsSync,
 } from "node:fs";
 import { join } from "node:path";
-import {
-  createCipheriv,
-  createDecipheriv,
-  createHash,
-  randomBytes,
-} from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { catalog, starterPlans } from "../shared/catalog";
 import {
   entityKey,
@@ -31,17 +26,14 @@ const tables = {
   plan: "workout_plans",
   session: "workout_sessions",
 } as const;
-export class Conflict extends Error {
-  constructor(
-    public entity: Entity,
-    public recordId: string,
-  ) {
-    super(
-      "Este registro mudou em outro dispositivo. A cópia local foi preservada.",
-    );
-  }
-}
-export class Store {
+export { Conflict } from "./store-contract";
+import {
+  Conflict,
+  type AppStore,
+  type UserCredentials,
+} from "./store-contract";
+import { sealPayload, openPayload } from "./encryption";
+export class Store implements AppStore {
   db: DatabaseSync;
   key: Buffer;
   constructor(public directory: string) {
@@ -74,28 +66,50 @@ export class Store {
     }
   }
   seal(value: unknown) {
-    const iv = randomBytes(12);
-    const cipher = createCipheriv("aes-256-gcm", this.key, iv);
-    const data = Buffer.concat([
-      cipher.update(JSON.stringify(value), "utf8"),
-      cipher.final(),
-    ]);
-    return Buffer.concat([iv, cipher.getAuthTag(), data]).toString("base64");
+    return sealPayload(this.key, value);
   }
   open<T>(payload: string): T {
-    const packed = Buffer.from(payload, "base64");
-    const decipher = createDecipheriv(
-      "aes-256-gcm",
-      this.key,
-      packed.subarray(0, 12),
-    );
-    decipher.setAuthTag(packed.subarray(12, 28));
-    return JSON.parse(
-      Buffer.concat([
-        decipher.update(packed.subarray(28)),
-        decipher.final(),
-      ]).toString("utf8"),
-    );
+    return openPayload<T>(this.key, payload);
+  }
+  getUser(): UserCredentials | undefined {
+    return this.db
+      .prepare("SELECT salt,password_hash FROM app_user WHERE id=1")
+      .get() as UserCredentials | undefined;
+  }
+  createUser(salt: string, passwordHash: string): boolean {
+    return this.transaction(() => {
+      if (this.getUser()) return false;
+      this.db
+        .prepare("INSERT INTO app_user VALUES (1,?,?)")
+        .run(salt, passwordHash);
+      this.seedPlans();
+      return true;
+    });
+  }
+  hasAuthSession(digest: string, now: number): boolean {
+    return !!this.db
+      .prepare(
+        "SELECT digest FROM auth_sessions WHERE digest=? AND expires_at>?",
+      )
+      .get(digest, now);
+  }
+  createAuthSession(
+    digest: string,
+    previousDigest: string,
+    now: number,
+    expires: number,
+  ): void {
+    this.transaction(() => {
+      this.db
+        .prepare("DELETE FROM auth_sessions WHERE expires_at<=? OR digest=?")
+        .run(now, previousDigest);
+      this.db
+        .prepare("INSERT INTO auth_sessions VALUES (?,?)")
+        .run(digest, expires);
+    });
+  }
+  deleteAuthSession(digest: string): void {
+    this.db.prepare("DELETE FROM auth_sessions WHERE digest=?").run(digest);
   }
   transaction<T>(fn: () => T): T {
     this.db.exec("BEGIN IMMEDIATE");

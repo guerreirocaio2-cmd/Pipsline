@@ -66,3 +66,37 @@ describe("configuração da hospedagem", () => {
     expect(config.setupToken).toBeUndefined();
   });
 });
+
+describe("banco persistente externo", () => {
+  it("recusa o modo PostgreSQL sem a conexão ou chave estável", () => {
+    expect(() => runtimeConfig({ PIPSFIT_STORAGE: "postgres" })).toThrow(
+      "DATABASE_URL",
+    );
+    expect(() => runtimeConfig({ RENDER: "true" })).toThrow("DATABASE_URL");
+    expect(() =>
+      runtimeConfig({ RENDER: "true", PIPSFIT_STORAGE: "sqlite" }),
+    ).toThrow("disco temporário");
+    expect(() =>
+      runtimeConfig({
+        PIPSFIT_STORAGE: "postgres",
+        DATABASE_URL: "postgresql://usuario:teste@banco.example/neondb",
+      }),
+    ).toThrow("PIPSFIT_ENCRYPTION_KEY");
+    const config = runtimeConfig({
+      PIPSFIT_STORAGE: "postgres",
+      DATABASE_URL: "postgresql://usuario:teste@banco.example/neondb",
+      PIPSFIT_ENCRYPTION_KEY: "chave-privada-exclusiva-de-teste-123456789",
+    });
+    expect(config.storage).toBe("postgres");
+    expect(() => runtimeConfig({ PIPSFIT_STORAGE: "temporario" })).toThrow(
+      "PIPSFIT_STORAGE",
+    );
+  });
+  it("mantém SQLite como padrão local e não conecta uma variável de outro projeto por acidente", () => {
+    expect(
+      runtimeConfig({
+        DATABASE_URL: "postgresql://outro-projeto.example/dados",
+      }).storage,
+    ).toBe("sqlite");
+  });
+});

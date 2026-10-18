@@ -2,11 +2,13 @@
 
 PWA pessoal de treino em português do Brasil. **Fase 1 implementada**: autenticação de um único usuário, 157 exercícios, fichas, modo treinando, descanso automático, histórico e sugestões de progressão. Não há dados pessoais de demonstração.
 
-## Usar no iPhone gratuitamente pelo Mac
+## Usar online gratuitamente no Mac e no iPhone
 
-Veja o [passo a passo gratuito com Tailscale Personal](docs/iphone-gratis-pelo-mac.md). O Mac continua como servidor e conserva a senha e os dados; o iPhone conecta por HTTPS privado, inclusive fora da rede de casa. O Mac precisa ficar ligado e o Tailscale deve estar conectado nos dois aparelhos. Não é necessário contratar hospedagem.
+Veja o [passo a passo Render Free + Neon Free](docs/hospedagem-gratuita.md). O aplicativo usa o mesmo endereço HTTPS nos dois aparelhos e funciona com o Mac desligado. O banco PostgreSQL fica no Neon e conserva os dados quando o serviço gratuito do Render reinicia. Os planos gratuitos têm limites e podem entrar em repouso; o primeiro acesso pode demorar.
 
-Se quiser manter o aplicativo disponível com o Mac desligado, existe também uma [alternativa paga no Render](docs/hospedar-no-render.md), configurada em `render.yaml`. Essa alternativa só deve ser contratada depois de revisar o custo no painel; ela não é necessária para o acesso gratuito pelo Mac.
+A configuração padrão está em `render.yaml`: plano **Free**, sem disco pago, `PIPSFIT_STORAGE=postgres`, conexão privada do Neon e chaves de ativação e criptografia geradas pelo Render. A criação das contas e do serviço é feita pelo usuário; salvar o código no GitHub não cria hospedagem automaticamente.
+
+Também existe a [alternativa privada pelo Mac com Tailscale](docs/iphone-gratis-pelo-mac.md), que conserva o banco local e exige o Mac ligado.
 
 ## Rodar localmente
 
@@ -41,13 +43,15 @@ Abra `http://localhost:3001`, entre online uma vez e aguarde a primeira sincroni
 
 O snapshot e a fila de operações ficam em uma única gravação no IndexedDB, criptografada com AES-GCM. A chave é derivada da senha usando PBKDF2-SHA-256, 310.000 iterações e salt aleatório por aparelho. O app só confirma o salvamento depois que essa gravação termina. Campos editados de uma série são confirmados ao tocar no ✓, não durante a digitação.
 
-Ao reconectar, o cliente envia a fila automaticamente. Cada operação tem UUID e versão esperada. SQLite aplica o lote em transação; repetir uma operação confirmada é seguro. Um conflito mantém toda a fila local e avisa na interface. **Preservar como cópias** cria registros separados para os dados locais e conserva os remotos; exporte antes se quiser conferir as duas versões. Não há sobrescrita silenciosa. Uma trava do navegador permite somente uma aba desbloqueada por aparelho, evitando que duas abas sobrescrevam o armazenamento local.
+Ao reconectar, o cliente envia a fila automaticamente. Cada operação tem UUID e versão esperada. O banco aplica o lote em transação; repetir uma operação confirmada é seguro. Um conflito mantém toda a fila local e avisa na interface. **Preservar como cópias** cria registros separados para os dados locais e conserva os remotos; exporte antes se quiser conferir as duas versões. Não há sobrescrita silenciosa. Uma trava do navegador permite somente uma aba desbloqueada por aparelho, evitando que duas abas sobrescrevam o armazenamento local.
 
 O desbloqueio offline vale por 7 dias após a última entrada online. Bloquear remove a chave local da memória. Depois de 15 minutos em segundo plano, o app pede a senha ao voltar. O navegador pode negar armazenamento persistente: limpar dados, usar navegação privada ou perder o aparelho antes da sincronização pode eliminar registros locais. Isso não pode ser impedido por uma aplicação web; sincronização e backups são necessários. O PWA não promete sincronização com o app fechado.
 
 ## Dados e segurança
 
-A API usa SQLite nativo do Node 24, com WAL, transações e chaves estrangeiras. Dados pessoais ficam em payloads AES-256-GCM; tabelas relacionais também mantêm projeções criptografadas de itens, dias e séries. IDs, revisões, relações e contagens são metadados visíveis. Veja [modelo de dados](docs/modelo-de-dados.md).
+Na hospedagem gratuita, `PIPSFIT_STORAGE=postgres` usa PostgreSQL e `PIPSFIT_ENCRYPTION_KEY` como segredo estável da criptografia. `DATABASE_URL` contém a conexão privada do Neon. A API usa o mesmo modelo relacional e validações em ambos os bancos. Um verificador criptografado impede abrir um banco remoto existente com outra chave. Nenhum dado de saúde depende do disco temporário do Render nesse modo.
+
+No uso local padrão, a API usa SQLite nativo do Node 24, com WAL, transações e chaves estrangeiras. Dados pessoais ficam em payloads AES-256-GCM; tabelas relacionais também mantêm projeções criptografadas de itens, dias e séries. IDs, revisões, relações e contagens são metadados visíveis. Veja [modelo de dados](docs/modelo-de-dados.md).
 
 O diretório `.local/` (ignorado pelo Git, permissão 0700) contém `pipsfit.sqlite`, os arquivos WAL/SHM e `master.key` (0600). Faça backups consistentes do banco **junto com a chave**. Pare o servidor antes de copiar a pasta, ou use o mecanismo de backup do SQLite. Não apague a chave: um banco existente sem chave bloqueia a inicialização, evitando gerar uma substituta incompatível. A chave fica separada do banco, mas não protege contra alguém com acesso ao processo ou a toda a máquina. Use disco/volume criptografado e controle de acesso ao hospedar.
 
@@ -69,7 +73,8 @@ Na hospedagem pública, `NODE_ENV=production`, uma origem HTTPS e `PIPSFIT_SETUP
 ```sh
 npm test             # cálculos, catálogo, validações, segurança e transações da API
 npm run build        # TypeScript e bundle PWA
-npm run test:e2e     # navegador real; exige build atual e Chromium
+npm run test:e2e     # navegador real com SQLite; exige build atual e Chromium
+npm run test:e2e:postgres # navegador real com PostgreSQL em WASM (PGlite)
 ```
 
 Os testes de navegador usam `/usr/bin/chromium`; defina `CHROMIUM_PATH` para outro executável, ou instale com `npx playwright install chromium` e informe seu caminho. Os testes criam um banco temporário e **não alteram seus dados**. Usam a porta 4173, que deve estar livre. Os testes validam a versão de produção, inclusive service worker, recarga offline, fila criptografada, sincronização, exportação e largura de 360 px.
