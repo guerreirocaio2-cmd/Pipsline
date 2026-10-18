@@ -1,0 +1,1067 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Pipsfit API",
+    "version": "0.1.0",
+    "description": "Fase 1, usuário único. Payloads de saúde criptografados em repouso. POST exige JSON e Origin da aplicação; cookie HttpOnly SameSite=Strict (Secure em produção). A sessão expira em oito horas. Payload de operação deve corresponder à entidade e ter revisão expectedRevision + 1. Não há exclusão física de fichas: use archived=true. Dados pessoais não são incluídos em logs."
+  },
+  "security": [
+    {
+      "session": []
+    }
+  ],
+  "paths": {
+    "/api/health": {
+      "get": {
+        "summary": "Verificar o processo, sem dados pessoais.",
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "ok"
+                    },
+                    "phase": {
+                      "type": "integer",
+                      "const": 1
+                    }
+                  },
+                  "required": ["status", "phase"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sessão ausente ou expirada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/auth/status": {
+      "get": {
+        "summary": "Consultar se existe senha e sessão válida.",
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "configured": {
+                      "type": "boolean"
+                    },
+                    "authenticated": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["configured", "authenticated"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sessão ausente ou expirada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/auth/setup": {
+      "post": {
+        "summary": "Criar o único usuário e modelos A/B/C.",
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "$ref": "#/components/schemas/State"
+                    }
+                  },
+                  "required": ["state"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sessão ausente ou expirada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Origem não autorizada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Senha já configurada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Muitas tentativas em 15 minutos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Origin",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Origem exata da aplicação, incluindo esquema e porta."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "password": {
+                    "type": "string",
+                    "minLength": 12,
+                    "maxLength": 128
+                  }
+                },
+                "required": ["password"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "summary": "Autenticar e emitir cookie de sessão de oito horas.",
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "$ref": "#/components/schemas/State"
+                    }
+                  },
+                  "required": ["state"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sessão ausente ou expirada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Origem não autorizada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Muitas tentativas em 15 minutos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Origin",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Origem exata da aplicação, incluindo esquema e porta."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "password": {
+                    "type": "string",
+                    "minLength": 12,
+                    "maxLength": 128
+                  }
+                },
+                "required": ["password"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "summary": "Revogar a sessão atual e remover o cookie.",
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["ok"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sessão ausente ou expirada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Origem não autorizada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Origin",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Origem exata da aplicação, incluindo esquema e porta."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/state": {
+      "get": {
+        "summary": "Ler snapshot completo descriptografado para o usuário autenticado.",
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "$ref": "#/components/schemas/State"
+                    }
+                  },
+                  "required": ["state"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sessão ausente ou expirada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sync": {
+      "post": {
+        "summary": "Aplicar lote atômico de operações idempotentes.",
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "$ref": "#/components/schemas/State"
+                    },
+                    "acknowledged": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "format": "uuid"
+                      }
+                    }
+                  },
+                  "required": ["state", "acknowledged"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sessão ausente ou expirada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Origem não autorizada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito de revisão; nenhuma operação do lote foi aplicada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "entity": {
+                      "type": "string"
+                    },
+                    "recordId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "entity", "recordId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Origin",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Origem exata da aplicação, incluindo esquema e porta."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "operations": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Operation"
+                    },
+                    "maxItems": 2000
+                  }
+                },
+                "required": ["operations"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/export": {
+      "get": {
+        "summary": "Exportar todos os dados pessoais da Fase 1, sem credenciais.",
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/State"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "version": {
+                          "type": "integer",
+                          "const": 1
+                        },
+                        "exportedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "required": ["version", "exportedAt"],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sessão ausente ou expirada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/openapi.json": {
+      "get": {
+        "summary": "Ler esta especificação.",
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sessão ausente ou expirada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "session": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "pipsfit_session"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": ["error"],
+        "additionalProperties": false
+      },
+      "Exercise": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120
+          },
+          "group": {
+            "type": "string",
+            "enum": [
+              "Peito",
+              "Costas",
+              "Ombros",
+              "Bíceps",
+              "Tríceps",
+              "Quadríceps",
+              "Posteriores e glúteos",
+              "Panturrilhas",
+              "Abdômen",
+              "Cardio"
+            ]
+          },
+          "equipment": {
+            "type": "string"
+          },
+          "custom": {
+            "type": "boolean"
+          }
+        },
+        "required": ["id", "revision", "name", "group", "equipment", "custom"],
+        "additionalProperties": false
+      },
+      "PlanItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "exerciseId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "sets": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 12
+          },
+          "minReps": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "maxReps": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "load": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "restSeconds": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 900
+          }
+        },
+        "required": [
+          "id",
+          "exerciseId",
+          "sets",
+          "minReps",
+          "maxReps",
+          "load",
+          "restSeconds"
+        ],
+        "additionalProperties": false
+      },
+      "Plan": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "name": {
+            "type": "string"
+          },
+          "weekdays": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 6
+            },
+            "maxItems": 7
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanItem"
+            },
+            "minItems": 1,
+            "maxItems": 50
+          },
+          "archived": {
+            "type": "boolean"
+          }
+        },
+        "required": ["id", "revision", "name", "weekdays", "items", "archived"],
+        "additionalProperties": false
+      },
+      "SetLog": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "load": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "reps": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 200
+          },
+          "completedAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          }
+        },
+        "required": ["id", "load", "reps", "completedAt"],
+        "additionalProperties": false
+      },
+      "SessionExercise": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "exerciseId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "name": {
+            "type": "string"
+          },
+          "minReps": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "maxReps": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "restSeconds": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 900
+          },
+          "skipped": {
+            "type": "boolean"
+          },
+          "sets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SetLog"
+            },
+            "minItems": 1,
+            "maxItems": 12
+          }
+        },
+        "required": [
+          "id",
+          "exerciseId",
+          "name",
+          "minReps",
+          "maxReps",
+          "restSeconds",
+          "skipped",
+          "sets"
+        ],
+        "additionalProperties": false
+      },
+      "StrengthSession": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "kind": {
+            "type": "string",
+            "const": "strength"
+          },
+          "planId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "name": {
+            "type": "string"
+          },
+          "currentExercise": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 49
+          },
+          "exercises": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SessionExercise"
+            },
+            "minItems": 1,
+            "maxItems": 50
+          },
+          "restUntil": {
+            "type": ["number", "null"],
+            "description": "Instante absoluto em milissegundos desde epoch."
+          }
+        },
+        "required": [
+          "id",
+          "revision",
+          "startedAt",
+          "finishedAt",
+          "kind",
+          "planId",
+          "name",
+          "currentExercise",
+          "exercises",
+          "restUntil"
+        ],
+        "additionalProperties": false
+      },
+      "CardioSession": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "kind": {
+            "type": "string",
+            "const": "cardio"
+          },
+          "activity": {
+            "type": "string",
+            "enum": ["Corrida", "Bike", "Natação", "Caminhada", "Outro"]
+          },
+          "minutes": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 1440
+          },
+          "distanceKm": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "effort": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10
+          }
+        },
+        "required": [
+          "id",
+          "revision",
+          "startedAt",
+          "finishedAt",
+          "kind",
+          "activity",
+          "minutes",
+          "distanceKm",
+          "effort"
+        ],
+        "additionalProperties": false
+      },
+      "Session": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/StrengthSession"
+          },
+          {
+            "$ref": "#/components/schemas/CardioSession"
+          }
+        ]
+      },
+      "Operation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "entity": {
+            "type": "string",
+            "enum": ["exercise", "plan", "session"]
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "payload": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Exercise"
+              },
+              {
+                "$ref": "#/components/schemas/Plan"
+              },
+              {
+                "$ref": "#/components/schemas/Session"
+              }
+            ]
+          }
+        },
+        "required": ["id", "entity", "expectedRevision", "payload"],
+        "additionalProperties": false
+      },
+      "State": {
+        "type": "object",
+        "properties": {
+          "exercises": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Exercise"
+            }
+          },
+          "plans": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Plan"
+            }
+          },
+          "sessions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Session"
+            }
+          }
+        },
+        "required": ["exercises", "plans", "sessions"],
+        "additionalProperties": false
+      }
+    }
+  }
+}

@@ -1,0 +1,25 @@
+PIPSFIT — ABRIR NO SEU COMPUTADOR
+
+1. Instale o Node.js 24 (com npm), pelo site oficial: https://nodejs.org
+2. Extraia TODO o ZIP para uma pasta do seu computador. Não execute de dentro do ZIP.
+3. No Windows: abra iniciar-windows.bat com dois cliques.
+   No macOS/Linux: no Terminal, entre na pasta extraída e execute:
+   bash iniciar-mac-linux.command
+4. Aguarde. Na primeira vez, o instalador baixa as dependências e precisa de internet.
+   Quando o servidor estiver pronto, o navegador será aberto automaticamente.
+5. Crie sua senha no primeiro acesso. Depois: Minhas fichas > Treinar.
+
+Deixe a janela do terminal aberta enquanto usa o aplicativo. Para encerrar, pressione
+Ctrl+C nessa janela. Para usar novamente, abra o mesmo arquivo de inicialização.
+
+Se o navegador não abrir automaticamente, digite localhost:3001 na barra de endereço
+do navegador DESTE computador. Não basta abrir index.html com dois cliques.
+
+Seus registros ficam neste computador: banco e chave na pasta .local, e cópia offline
+criptografada no navegador. Não exclua .local; faça backup da pasta inteira com o
+servidor parado. Não existe recuperação de senha nesta fase. Use sempre a mesma origem
+(localhost, mesma porta) e o mesmo perfil do navegador para conservar a cópia offline.
+
+A interface usa português do Brasil. Esta entrega contém a Fase 1 (treinos); dieta,
+medidas/fotos e importação de bioimpedância estão previstas para as próximas fases.
+Consulte README.md para instruções detalhadas e limitações.
